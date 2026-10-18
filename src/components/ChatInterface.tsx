@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Send, User, Bot, Sparkles, Trophy, Star, Zap, Loader2 } from "lucide-react";
+import { Send, User, Bot, Sparkles, Trophy, Zap, Loader2 } from "lucide-react";
+import { sendChatMessage, type ChatTurn } from "@/lib/api";
 
 interface Message {
   id: string;
@@ -27,8 +28,12 @@ const ChatInterface = () => {
   const [demoMode, setDemoMode] = useState(false);
   const [demoProgress, setDemoProgress] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
-  const [typingMessage, setTypingMessage] = useState("");
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [offline, setOffline] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, isTyping]);
 
   useEffect(() => {
     if (demoMode) {
@@ -46,29 +51,43 @@ const ChatInterface = () => {
     }
   }, [demoMode]);
 
-  const sendMessage = () => {
-    if (!inputValue.trim()) return;
+  const sendMessage = async () => {
+    const text = inputValue.trim();
+    if (!text || isTyping) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: inputValue,
+      content: text,
       sender: 'user',
       timestamp: new Date(),
     };
 
+    // Send the recent conversation (minus the greeting) so the mentor keeps context.
+    const history: ChatTurn[] = messages
+      .slice(1)
+      .slice(-10)
+      .map((m) => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.content }));
+
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
+    setIsTyping(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        content: getAIResponse(inputValue),
-        sender: 'ai',
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, aiResponse]);
-    }, 1000);
+    let reply: string;
+    try {
+      const res = await sendChatMessage(text, history);
+      reply = res.reply;
+      setOffline(false);
+    } catch {
+      // Backend unreachable: keep the demo usable with built-in answers.
+      reply = getAIResponse(text);
+      setOffline(true);
+    }
+
+    setMessages(prev => [
+      ...prev,
+      { id: (Date.now() + 1).toString(), content: reply, sender: 'ai', timestamp: new Date() },
+    ]);
+    setIsTyping(false);
   };
 
   const getAIResponse = (userInput: string): string => {
@@ -107,7 +126,9 @@ const ChatInterface = () => {
           </div>
             <div>
               <h3 className="font-semibold text-card-foreground">AI Career Mentor</h3>
-              <p className="text-sm text-muted-foreground">Powered by Llama 2</p>
+              <p className="text-sm text-muted-foreground">
+                {offline ? "Offline mode - start the backend for AI answers" : "Powered by Llama 4"}
+              </p>
             </div>
             <Button
               variant="outline"
@@ -150,6 +171,14 @@ const ChatInterface = () => {
               </div>
             </div>
           ))}
+          {isTyping && (
+            <div className="flex justify-start">
+              <div className="p-3 rounded-lg bg-muted text-muted-foreground border border-border/50 flex items-center space-x-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Mentor is thinking...</span>
+              </div>
+            </div>
+          )}
           {demoMode && (
             <div className="mt-4">
               <Badge variant="secondary" className="w-full">
@@ -161,6 +190,7 @@ const ChatInterface = () => {
               </Badge>
             </div>
           )}
+          <div ref={bottomRef} />
         </div>
       </ScrollArea>
 
@@ -170,11 +200,11 @@ const ChatInterface = () => {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="Ask me about your career goals, interview prep, or skill development..."
-            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
             className="flex-1"
             disabled={demoMode}
           />
-          <Button onClick={sendMessage} size="icon" disabled={demoMode}>
+          <Button onClick={sendMessage} size="icon" disabled={demoMode || isTyping || !inputValue.trim()} aria-label="Send message">
             <Send className="w-4 h-4" />
           </Button>
         </div>

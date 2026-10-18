@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Frontend React Application
   frontend:
@@ -23,31 +21,19 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
-      - ENVIRONMENT=production
-      - CORS_ORIGINS=http://localhost:3000,http://frontend:80
-    volumes:
-      - ./backend/sample_finetune_data.json:/app/sample_finetune_data.json:ro
+      - CORS_ORIGINS=http://localhost,http://localhost:3000
     networks:
       - careernetwork
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-
-  # Redis for caching (optional enhancement)
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    networks:
-      - careernetwork
-    restart: unless-stopped
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
 
   # Nginx reverse proxy (for production deployment)
   nginx:
@@ -66,6 +52,3 @@ services:
 networks:
   careernetwork:
     driver: bridge
-
-volumes:
-  redis_data:

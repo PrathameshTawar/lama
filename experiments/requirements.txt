@@ -1,0 +1,12 @@
+# Standalone prototypes - not used by the web app or the API.
+streamlit
+sounddevice
+soundfile
+numpy
+torch
+requests
+python-dotenv
+gTTS
+langchain
+langchain-cerebras
+transformers

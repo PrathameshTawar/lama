@@ -8,6 +8,10 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      // Forward API calls to the FastAPI backend during development.
+      "/api": process.env.VITE_DEV_API_PROXY ?? "http://localhost:8000",
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
